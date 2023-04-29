@@ -1,8 +1,8 @@
 local thing = {}
-local request = (syn and syn.request) or request or http_request or HttpPost
+local Request = (syn and syn.request) or request or http_request or HttpPost
 
 function thing:getResponse(args)
-    local response = syn.request({
+    local response = Request({
         Url = string.format("https://raw.githubusercontent.com/%s/%s/main/%s", args.Owner, args.Repository, args.File),
         Method = "GET",
         Headers = {
