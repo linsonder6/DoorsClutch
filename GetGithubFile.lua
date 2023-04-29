@@ -1,4 +1,5 @@
 local thing = {}
+local request = (syn and syn.request) or request or http_request or HttpPost
 
 function thing:getResponse(args)
     local response = syn.request({
