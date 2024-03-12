@@ -1,4 +1,5 @@
 -- Code by LSPLASH :scream:
+-- Use _G.OnShop = false if you are using Delta
 
 if _G.OnShop then
     local CustomShop = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Shop%20Items/Source.lua"))()
