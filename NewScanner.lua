@@ -1,8 +1,8 @@
 -- Code by LSPLASH :scream:
 
-local CustomShop = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Shop%20Items/Source.lua"))()
-
 if _G.OnShop then
+    local CustomShop = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Shop%20Items/Source.lua"))()
+	
     CustomShop.CreateItem("", {
         Title = "Scanner",
         Desc = _G.Description or "",
