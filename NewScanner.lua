@@ -3,7 +3,7 @@
 local CustomShop = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Shop%20Items/Source.lua"))()
 
 if _G.OnShop then
-    CustomShop.CreateItem(exampleTool, {
+    CustomShop.CreateItem("", {
         Title = "Scanner",
         Desc = _G.Description or "",
         Image = "https://static.wikia.nocookie.net/doors-game/images/4/4e/Scanner_Icon.png/revision/latest/scale-to-width-down/350?cb=20230203191128",
