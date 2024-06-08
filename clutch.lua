@@ -4,6 +4,11 @@ local cloneref = cloneref or function(o) return o end
 local function GetService(name)
     return cloneref(game:GetService(name))
 end
+local oldfireproximityprompt = fireproximityprompt
+fireproximityprompt = function(a)
+    oldfireproximityprompt(a,0)
+    return oldfireproximityprompt(a, 1)
+end
 
 local Lighting = GetService("Lighting")
 local PathfindingService = GetService("PathfindingService")
@@ -317,7 +322,8 @@ function firepp(prompt: ProximityPrompt, targetObj)
 end
 
 local function inCutscene(): boolean
-    return mainGame.stopcam or false
+    return false
+    --return mainGame.stopcam or false
 end
 
 function isEntitySpawned(): boolean
@@ -814,6 +820,13 @@ function addRoomConnection(room)
                         Type = "Objective",
                         Object = child,
                         Text = "Breaker",
+                        Color = Flags["ObjectiveESPColor"].Color
+                    })
+                elseif child.Name == "TimerLever" then
+                    esp({
+                        Type = "Objective",
+                        Object = child,
+                        Text = "Timer Lever",
                         Color = Flags["ObjectiveESPColor"].Color
                     })
                 end
@@ -2796,7 +2809,7 @@ task.spawn(function()
         haltModule = require(entityModules.Shade)
     end)
 
-    if success then
+    if success and glitchModule and haltModule then
         oldGlitchStuff = glitchModule.stuff
         oldHaltStuff = haltModule.stuff
     else
@@ -2921,9 +2934,9 @@ Midnight:AddConnection(workspace.ChildAdded:Connect(function(child)
     end)
 
     task.delay(0.1, function()
-        if alive and isEyesSpawned() then
-            remotesFolder.MotorReplication:FireServer(0, -89, mainGame.az_t, mainGame.crouching)
-        end
+        --if alive and isEyesSpawned() then
+            --remotesFolder.MotorReplication:FireServer(0, -89, mainGame.az_t, mainGame.crouching)
+        --end
 
         if isFools then
             if Flags["AntiBanana"].Value and child.Name == "BananaPeel" then
@@ -2940,7 +2953,8 @@ Midnight:AddConnection(workspace.ChildAdded:Connect(function(child)
                 if child:IsDescendantOf(workspace) then 
                     local rawEntityName = entitiesTable.Names[child.Name] or child.Name
                     local entityName = getEntityName(child)
-    
+                    
+
                     if Flags["ESPWhat"].Value.Entity then
                         addEntityEsp(child)
                     end  
