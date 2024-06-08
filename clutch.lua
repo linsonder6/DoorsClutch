@@ -1,3 +1,4 @@
+--credits to deividcomsono for the original clutch.lua :pog:
 if game.GameId ~= 2440500124 then return end -- Universe ID
 
 local cloneref = cloneref or function(o) return o end
