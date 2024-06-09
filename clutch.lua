@@ -1,14 +1,16 @@
 --credits to deividcomsono for the original clutch.lua :pog:
+-- Credits to linsonder6 for helping with supporting Solara (https://github.com/linsonder6/DoorsClutch/blob/main/clutch.lua)
 if game.GameId ~= 2440500124 then return end -- Universe ID
 
 local cloneref = cloneref or function(o) return o end
 local function GetService(name)
     return cloneref(game:GetService(name))
 end
+
 local oldfireproximityprompt = fireproximityprompt
-fireproximityprompt = function(a)
-    oldfireproximityprompt(a,0)
-    return oldfireproximityprompt(a, 1)
+fireproximityprompt = function(prompt: ProximityPrompt)
+    oldfireproximityprompt(prompt, 0)
+    return oldfireproximityprompt(prompt, 1)
 end
 
 local Lighting = GetService("Lighting")
@@ -47,7 +49,6 @@ message.update_message_with_progress("[clutch.lua]: Creating variables...", 1)
 -- #region Variables --
 local RBXGeneral: TextChannel = TextChatService.TextChannels.RBXGeneral
 
-local originalHook
 local connections = {}
 local objects = {}
 local tracks = {}
@@ -147,7 +148,6 @@ local playerGui = localPlayer.PlayerGui
 
 local mainUI = playerGui:WaitForChild("MainUI")
 local rawMainGame = mainUI:WaitForChild("Initiator"):WaitForChild("Main_Game")
-local mainGame = require(rawMainGame)
 
 local permUI = playerGui:WaitForChild("PermUI")
 local hints = permUI:WaitForChild("Hints")
@@ -170,12 +170,6 @@ local isRooms = floor.Value == "Rooms"
 local liveModifiers = ReplicatedStorage:WaitForChild("LiveModifiers")
 
 local remotesFolder = isFools and ReplicatedStorage:WaitForChild("EntityInfo") or ReplicatedStorage:WaitForChild("RemotesFolder")
-
-local haltModule
-local oldHaltStuff
-
-local glitchModule
-local oldGlitchStuff
 
 -- Auto Doors ---
 local charPos = alive and character:GetPivot() or CFrame.new()
@@ -216,115 +210,10 @@ function distanceFromCharacter(position)
     return 9e9
 end
 
--- Auto Doors --
-function dragPlayer(pos) -- https://github.com/RegularVynixu/Utilities/blob/main/Doors%20Entity%20Spawner/Source.lua#L43 (credits to vynixu for function)
-    if not Flags["AutoPlay"].Value then return end
-    if Flags["AutoPlayPause"].Value and isEntitySpawned() then
-        repeat RunService.Heartbeat:Wait() until not isEntitySpawned()
-    end
-
-    if connections["MoveConnection"] then
-        connections["MoveConnection"]:Disconnect()
-    end
-
-    connections["MoveConnection"] = RunService.Stepped:Connect(function(_, deltaTime)
-        if character and rootPart then
-            local rootPos = rootPart.Position
-            local diff = Vector3.new(pos.X, pos.Y, pos.Z) - rootPos
-
-            if diff.Magnitude > 0.1 then
-                character:PivotTo(CFrame.new(rootPos + diff.Unit * math.min(deltaTime * Flags["AutoPlaySpeed"].Value, diff.Magnitude)))
-            else
-                charPos = character:GetPivot()
-                connections["MoveConnection"]:Disconnect()
-            end
-        end
-    end)
-
-    repeat
-        task.wait()
-    until not connections["MoveConnection"].Connected
-end
-
-local function followPath(destination)
-	local success, errorMessage = pcall(function()
-		path:ComputeAsync(character.PrimaryPart.Position, destination)
-	end)
-
-	if success and path.Status == Enum.PathStatus.Success then
-		waypoints = path:GetWaypoints()
-
-		connections["BlockedConnection"] = path.Blocked:Connect(function(blockedWaypointIndex)
-			if blockedWaypointIndex >= nextWaypointIndex then
-				connections["BlockedConnection"]:Disconnect()
-				followPath(destination)
-			end
-		end)
-
-		-- Detect when movement to next waypoint is complete
-		if not connections["ReachedConnection"] then
-			connections["ReachedConnection"] = humanoid.MoveToFinished:Connect(function(reached)
-				if reached and nextWaypointIndex < #waypoints then
-					nextWaypointIndex += 1
-					humanoid:MoveTo(waypoints[nextWaypointIndex].Position)
-				else
-					connections["ReachedConnection"]:Disconnect()
-					connections["BlockedConnection"]:Disconnect()
-				end
-			end)
-		end
-
-		-- Initially move to second waypoint (first waypoint is path start; skip it)
-		nextWaypointIndex = 2
-		humanoid:MoveTo(waypoints[nextWaypointIndex].Position)
-	else
-		warn("Path not computed!", errorMessage)
-	end
-end
-
-function firepp(prompt: ProximityPrompt, targetObj)
-    if not prompt:IsA("ProximityPrompt") then
-        return error("ProximityPrompt expected, got " .. typeof(prompt))
-    end
-
-    if prompt.HoldDuration == 0 then
-        return fireproximityprompt(prompt)
-    end
-
-    local originalEnabled = prompt.Enabled
-    local originalLineOfSight = prompt.RequiresLineOfSight
-    local originalCamCFrame = camera.CFrame
-
-    prompt.Enabled = true
-    prompt.RequiresLineOfSight = false
-
-    mainGame.crouch(false)
-
-    local objPos = Vector3.zero
-    local targetObj = targetObj or (prompt:FindFirstAncestorWhichIsA("Model") or prompt:FindFirstAncestorWhichIsA("BasePart"))
-    if targetObj then
-        objPos = (targetObj:IsA("Model") and targetObj:GetPivot().Position or targetObj.Position)
-    end
-
-    connections["PromptConnection"] = RunService.RenderStepped:Connect(function()
-        camera.CFrame = CFrame.new(camera.CFrame.Position, objPos)
-    end)
-    task.wait(0.1)
-
-    prompt:InputHoldEnd()
-    prompt:InputHoldBegin()
-    prompt.PromptButtonHoldEnded:Wait()
-    prompt:InputHoldEnd()
-    connections["PromptConnection"]:Disconnect()
-
-    camera.CFrame = originalCamCFrame
-    prompt.Enabled = originalEnabled
-    prompt.RequiresLineOfSight = originalLineOfSight
-end
-
 local function inCutscene(): boolean
-    return false
-    --return mainGame.stopcam or false
+    local head = character.Head
+    local dist = (camera.CFrame.Position - head.Position).Magnitude
+    return (dist > 1) or false
 end
 
 function isEntitySpawned(): boolean
@@ -573,21 +462,30 @@ function addObjectiveEsp(room)
                 })
             end
         end
+        for i,v in pairs(room.Assets:GetChildren()) do
+            if v.Name == "TimerLever" then
+                local backdoorlever = room.Assets.TimerLever
+                local esp = esp({
+                    Type = "Objective",
+                    Object = backdoorlever,
+                    Text = "Timer Lever",
+                    Color = Flags["ObjectiveESPColor"].Color
+                })
+            elseif v.Name == "LeverForGate" then
+                local lever = room.Assets.LeverForGate
+                local esp = esp({
+                    Type = "Objective",
+                    Object = lever,
+                    Text = "Lever",
+                    Color = Flags["ObjectiveESPColor"].Color
+                })
 
-        if room.Assets:FindFirstChild("LeverForGate") then
-            local lever = room.Assets.LeverForGate
-
-            local esp = esp({
-                Type = "Objective",
-                Object = lever,
-                Text = "Lever",
-                Color = Flags["ObjectiveESPColor"].Color
-            })
-
-            lever.PrimaryPart:WaitForChild("SoundToPlay").Played:Connect(function()
-                esp.Delete()
-            end)
-        elseif room.Name == "100" then
+                lever.PrimaryPart:WaitForChild("SoundToPlay").Played:Connect(function()
+                    esp.Delete()
+                end)
+            end
+        end
+        if room.Name == "100" then
             local key = room.Assets:WaitForChild("ElectricalKeyObtain", 5)
             if key then
                 esp({
@@ -777,7 +675,7 @@ function addRoomConnection(room)
     
                     repeat
                         task.wait()
-                    until not child or not mainGame.stopcam or not Flags["AutoBreakerBox"].Value or not using
+                    until not child or not Flags["AutoBreakerBox"].Value or not using
     
                     if child then child:SetAttribute("DreadReaction", nil) end
                 end
@@ -821,13 +719,6 @@ function addRoomConnection(room)
                         Type = "Objective",
                         Object = child,
                         Text = "Breaker",
-                        Color = Flags["ObjectiveESPColor"].Color
-                    })
-                elseif child.Name == "TimerLever" then
-                    esp({
-                        Type = "Objective",
-                        Object = child,
-                        Text = "Timer Lever",
                         Color = Flags["ObjectiveESPColor"].Color
                     })
                 end
@@ -1206,7 +1097,6 @@ local PlayerTab = Window:AddTab("Player") do
 
             if value then
                 while Flags["Fly"].Value and RunService.Heartbeat:Wait() do
-                    if Flags["AutoPlay"].Value then continue end
                     local add = Vector3.zero
 
                     if UserInputService:IsKeyDown(Enum.KeyCode.W) then add += camera.CFrame.LookVector + (camera.CFrame.UpVector * Flags["FlyUpOffset"].Value) end
@@ -1266,6 +1156,7 @@ local PlayerTab = Window:AddTab("Player") do
 
                             prompt.Enabled = true
                             prompt.RequiresLineOfSight = false
+                            print("set prompt clip to true")
                         else
                             prompt.Enabled = prompt:GetAttribute("OriginalEnabled") or true
                             prompt.RequiresLineOfSight = prompt:GetAttribute("OriginalClip") or true
@@ -1527,34 +1418,6 @@ local ExploitTab = Window:AddTab("Exploits") do
         })
     
         EntitiesSection:AddToggle({
-            Name = "No Glitch",
-            Flag = "NoGlitch",
-            Callback = function(value)
-                if not glitchModule then return end
-
-                if value then
-                    glitchModule.stuff = function(...) print("Glich Module called") end
-                else 
-                    glitchModule.stuff = oldGlitchStuff
-                end
-            end
-        })
-
-        EntitiesSection:AddToggle({
-            Name = "No Halt",
-            Flag = "NoHalt",
-            Callback = function(value)
-                if not haltModule then return end
-
-                if value then
-                    haltModule.stuff = function(...) print("Halt Module called") end
-                else 
-                    haltModule.stuff = oldHaltStuff
-                end
-            end
-        })
-    
-        EntitiesSection:AddToggle({
             Name = "No Screech",
             Flag = "NoScreech",
             Callback = function(value)
@@ -1653,17 +1516,7 @@ local VisualsTab = Window:AddTab("Visuals") do
         end
     end
 
-    local CamManipulation = VisualsTab:AddElementSection("Camera Manipulation") do
-        CamManipulation:AddToggle({
-            Name = "No Camera Bob",
-            Flag = "NoCamBob"
-        })
-    
-        CamManipulation:AddToggle({
-            Name = "No Camera Shake",
-            Flag = "NoCamShake"
-        })
-    
+    local CamManipulation = VisualsTab:AddElementSection("Camera Manipulation") do    
         CamManipulation:AddSlider({
             Name = "Field Of View",
             Flag = "FOV",
@@ -2010,11 +1863,6 @@ local AutomationTab = Window:AddTab("Automation") do
     end
 
     AutomationTab:AddElementToggle({
-        Name = "Auto Heartbeat",
-        Flag = "AutoHeartbeat"
-    })
-
-    AutomationTab:AddElementToggle({
         Name = "Auto Padlock",
         Flag = "AutoPadlock",
         Callback = function(value)
@@ -2049,7 +1897,7 @@ local AutomationTab = Window:AddTab("Automation") do
                 local autoConnections = {}
                 local using = false
 
-                if mainGame.stopcam and workspace.CurrentRooms:FindFirstChild("100") then
+                if workspace.CurrentRooms:FindFirstChild("100") then
                     local elevatorBreaker = workspace.CurrentRooms["100"]:FindFirstChild("ElevatorBreaker")
 
                     if elevatorBreaker and not elevatorBreaker:GetAttribute("DreadReaction") then
@@ -2105,7 +1953,7 @@ local AutomationTab = Window:AddTab("Automation") do
 
                     repeat
                         task.wait()
-                    until not elevatorBreaker or not mainGame.stopcam or not Flags["AutoBreakerBox"].Value or not using
+                    until not elevatorBreaker or not Flags["AutoBreakerBox"].Value or not using
 
                     if elevatorBreaker then elevatorBreaker:SetAttribute("DreadReaction", nil) end
                 end
@@ -2116,443 +1964,6 @@ local AutomationTab = Window:AddTab("Automation") do
             end
         end
     })
-
-    local oldHalt = false
-    local oldScreech = false
-    local AutoPlayToggle = AutomationTab:AddElementToggle({
-        Name = "Auto Play",
-        Flag = "AutoPlay",
-        Callback = function(value)
-            if value then
-                local playerRoom = localPlayer:GetAttribute("CurrentRoom")
-                local playerRoomDiference = latestRoom.Value - playerRoom
-
-                currentRoom = workspace.CurrentRooms:WaitForChild(latestRoom.Value)
-                if playerRoomDiference > 0 then
-                    local startDistance = distanceFromCharacter(workspace.CurrentRooms:WaitForChild(playerRoom).RoomEntrance)
-                    local endDistance = distanceFromCharacter(workspace.CurrentRooms:WaitForChild(playerRoom).RoomExit)
-
-                    if playerRoomDiference >= 2 then
-                        currentRoom = workspace.CurrentRooms:WaitForChild(playerRoom + 1)
-                    else
-                        if startDistance < endDistance then
-                            currentRoom = workspace.CurrentRooms:WaitForChild(playerRoom)
-                        else
-                            currentRoom = workspace.CurrentRooms:WaitForChild(playerRoom + 1)
-                        end
-                    end
-                end
-
-                currentDoor = currentRoom:WaitForChild("Door")
-                doorPos = currentDoor:GetPivot()
-
-                if not isRooms then
-                    oldHalt = Flags["NoHalt"].Value
-                    Flags["NoHalt"]:SetLocked(true)
-                    Flags["NoHalt"]:Set(true)
-
-                    oldScreech = Flags["NoScreech"].Value
-                    Flags["NoScreech"]:SetLocked(true)
-                    Flags["NoScreech"]:Set(true)
-
-                    task.spawn(function()
-                        Flags["Fly"]:SetLocked(true)
-                        Flags["Fly"]:Set(true)
-                    end)
-
-                    while Flags["AutoPlay"].Value and latestRoom.Value < Flags["AutoPlayMaxRoom"].Value + 1 do
-                        local requiresKey = currentRoom:GetAttribute("RequiresKey")
-                        if currentDoor:GetAttribute("Opened") then requiresKey = false end
-
-                        local isSnakeRoom = false
-
-                        if isRetro then
-                            if currentRoom.Name == "21" then
-                                downOffset = 10
-                            elseif currentRoom.Name == "42" then
-                                downOffset = 40
-                            elseif tonumber(currentRoom.Name) > 42 then
-                                break
-                            end 
-                        else
-                            if currentRoom.Name == "49" then
-                                downOffset = -12
-                                repeat task.wait() until not isEntitySpawned()
-                            elseif latestRoom.Value == 50 then
-                                task.wait(0.5)
-        
-                                doorPos *= CFrame.new(0, 0, 0.75)
-                                downOffset = -14
-        
-                                repeat
-                                    task.wait(0.1)
-                                until not inCutscene()
-                                task.wait(0.2)
-        
-                                dragPlayer(CFrame.new(localPlayer.Character:GetPivot().X, doorPos.Y + downOffset, localPlayer.Character:GetPivot().Z))
-                            
-                                repeat
-                                    local closestBook = nil
-                                    local closestDistance = 9e9
-        
-                                    for _, book in pairs(currentRoom.Assets:GetDescendants()) do
-                                        if book.Name == "LiveHintBook" then
-                                            local bookPos = book:GetPivot()
-                                            local bookDistance = distanceFromCharacter(bookPos.Position)
-                            
-                                            if bookDistance < closestDistance then
-                                                closestBook = book
-                                                closestDistance = bookDistance
-                                            end
-                                        end
-                                    end
-        
-                                    if closestBook ~= nil then
-                                        local bookPos = closestBook:GetPivot()
-                            
-                                        dragPlayer(CFrame.new(bookPos.X, charPos.Y, bookPos.Z))
-                                        dragPlayer(CFrame.new(charPos.X, bookPos.Y - 2, charPos.Z))
-                                        fireproximityprompt(closestBook.ActivateEventPrompt)
-                                        dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                                        task.wait()
-                                    end
-                                until not currentRoom.Assets:FindFirstChild("LiveHintBook", true)
-        
-                                repeat
-                                    task.wait()
-                                until not workspace:FindFirstChild("LiveHintBook", true)
-                            
-                                local paper = currentRoom:FindFirstChild("PickupItem")
-                                if paper then
-                                    local paperPos = paper:GetPivot().Position
-                            
-                                    dragPlayer(CFrame.new(paperPos.X, charPos.Y, paperPos.Z))
-                                    dragPlayer(CFrame.new(charPos.X, paperPos.Y, charPos.Z))
-                                    fireproximityprompt(paper.ModulePrompt)
-                                    dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                                end
-                            
-                                local paperItem = localPlayer.Character:FindFirstChildOfClass("Tool")
-                            
-                                dragPlayer(CFrame.new(doorPos.X, doorPos.Y + downOffset, doorPos.Z))
-
-                                local code = {}
-                            
-                                if paperItem and paperItem.Name:match("LibraryHintPaper") then
-                                    code = getPadlockCode(paperItem)
-                                end
-
-                                remotesFolder.PL:FireServer(table.concat(code))
-                            elseif latestRoom.Value == 52 then
-                                downOffset = -12
-                            elseif latestRoom.Value == 100 then
-                                task.wait(1)
-                        
-                                if currentRoom:FindFirstChild("LiveBreakerPolePickup") then
-                                    repeat            
-                                        local closestBreaker = nil
-                                        local closestDistance = 9e9
-                            
-                                        for _, breaker in pairs(currentRoom:GetChildren()) do
-                                            if breaker.Name == "LiveBreakerPolePickup" then
-                                                local breakerPos = breaker:GetPivot()
-                                                local breakerDistance = distanceFromCharacter(breakerPos.Position)
-                                
-                                                if breakerDistance < closestDistance then
-                                                    closestBreaker = breaker
-                                                    closestDistance = breakerDistance
-                                                end
-                                            end
-                                        end
-                            
-                                        local breakerPos = closestBreaker:GetPivot()
-                            
-                                        if (breakerPos.Y - doorPos.Y) > 6 then
-                                            downOffset = 56
-                                        else
-                                            downOffset = -12
-                                        end
-                            
-                                        dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                                        dragPlayer(CFrame.new(breakerPos.X, charPos.Y, breakerPos.Z))
-                                        dragPlayer(CFrame.new(charPos.X, breakerPos.Y, charPos.Z))
-                                        if closestBreaker then fireproximityprompt(closestBreaker.ActivateEventPrompt) end
-                                        dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                                        task.wait(0.1)
-                                    until not currentRoom:FindFirstChild("LiveBreakerPolePickup")
-                                end 
-                        
-                                downOffset = -12
-                        
-                                local gate = currentRoom:FindFirstChild("IndustrialGate")
-                                if gate then
-                                    local lever = gate.Box
-                                    local leverPos = lever.Position
-                        
-                                    dragPlayer(CFrame.new(leverPos.X, charPos.Y, leverPos.Z))
-                                    dragPlayer(CFrame.new(charPos.X, leverPos.Y, charPos.Z))
-                                    fireproximityprompt(lever.ActivateEventPrompt)
-                                end
-                        
-                                task.wait(0.5)
-                                repeat
-                                    task.wait()
-                                until not inCutscene()
-                        
-                                dragPlayer(CFrame.new(localPlayer.Character:GetPivot().Position.X, doorPos.Y + downOffset, localPlayer.Character:GetPivot().Position.Z))
-                        
-                                local elevatorBreaker = currentRoom:FindFirstChild("ElevatorBreakerEmpty")
-                                if elevatorBreaker then
-                                    local breakerBox = elevatorBreaker.Box
-                                    local breakerBoxPos = breakerBox.Position
-                        
-                                    dragPlayer(CFrame.new(breakerBoxPos.X, charPos.Y, breakerBoxPos.Z))
-                                    dragPlayer(CFrame.new(charPos.X, breakerBoxPos.Y, charPos.Z))
-                                    fireproximityprompt(elevatorBreaker.Prompt)
-                                    repeat task.wait() until inCutscene()
-                                end
-                        
-                                repeat task.wait() until not inCutscene()
-                                task.wait(0.1)
-                        
-                                elevatorBreaker = currentRoom:WaitForChild("ElevatorBreaker")
-                                if elevatorBreaker then
-                                    local prompt = elevatorBreaker.ActivateEventPrompt
-                                    local breakerBox = elevatorBreaker.Box
-                                    local breakerPos = breakerBox.Position
-                                    dragPlayer(CFrame.new(breakerPos.X, charPos.Y, breakerPos.Z))
-                                    dragPlayer(CFrame.new(charPos.X, breakerPos.Y, charPos.Z))
-        
-                                    mainUI.Initiator.Main_Game.MinigameHandler.Disabled = true
-                                    fireproximityprompt(prompt)
-                                    prompt.Enabled = false
-                                    task.wait(35)
-                                    mainUI.Initiator.Main_Game.MinigameHandler.Disabled = false
-                                    prompt.Enabled = true
-                                    remotesFolder.EBF:FireServer()
-                                end
-                        
-                                task.wait(0.5)
-                                repeat
-                                    task.wait()
-                                until not inCutscene()
-                                task.wait(0.1)
-                        
-                                downOffset = 48
-                        
-                                dragPlayer(CFrame.new(localPlayer.Character:GetPivot().Position.X, doorPos.Y + downOffset, localPlayer.Character:GetPivot().Position.Z))
-                        
-                                local elevator = currentRoom:WaitForChild("ElevatorCar")
-                                if elevator then
-                                    local elevatorPos = elevator:GetPivot()
-                        
-                                    dragPlayer(CFrame.new(elevatorPos.X, localPlayer.Character:GetPivot().Y, elevatorPos.Z))
-                                    dragPlayer(CFrame.new(localPlayer.Character:GetPivot().X, elevatorPos.Y, localPlayer.Character:GetPivot().Z))
-                                    task.wait()
-                                    firetouchtransmitter(elevator.CollisionFloor, localPlayer.Character.PrimaryPart, 0)
-                                    task.wait()
-                                    firetouchtransmitter(elevator.CollisionFloor, localPlayer.Character.PrimaryPart, 1)
-                                end
-                        
-                                break
-                            end
-                        end
-
-                        if currentRoom.Parts:FindFirstChild("Steps") and not currentRoom.Assets:FindFirstChild("LeverForGate") then
-                            if (doorPos.Y - lastYBeforeOpening) > 10 then -- upstairs room
-                                doorPos *= CFrame.new(0, 0, 0.75)
-                                downOffset = -(doorPos.Y - lastYBeforeOpening)
-                            end
-                        elseif currentRoom.Assets:FindFirstChild("Paintings") then -- paintints room
-                            downOffset = -14
-                        elseif currentRoom:FindFirstChild("BlockedDoorModel") then -- snake room
-                            local blockedDoorModels = 0
-                            for _, door in pairs(currentRoom:GetChildren()) do
-                                if door.Name == "BlockedDoorModel" then
-                                    blockedDoorModels += 1
-                                end
-                            end
-                    
-                            if blockedDoorModels == 8 then
-                                isSnakeRoom = true
-                            end
-                        elseif currentRoom.Assets:FindFirstChild("LiveObstructionNew") then
-                            local obstructions = {}
-
-                            for _, obstruction in pairs(currentRoom.Assets:GetChildren()) do
-                                if obstruction.Name:match("LiveObstructionNew") then
-                                    obstructions[obstruction] = true
-                                end
-                            end
-
-                            repeat
-                                local closestObstruction = nil
-                                local closestDistance = 9e9
-
-                                for obstruction, _ in pairs(obstructions) do
-                                    local obstructionPos = obstruction:GetPivot()
-                                    local obstructionDistance = distanceFromCharacter(obstructionPos.Position)
-
-                                    print("got pos")
-                    
-                                    if obstructionDistance < closestDistance then
-                                        closestObstruction = obstruction
-                                        closestDistance = obstructionDistance
-
-                                        print("set closest")
-                                    end
-                                end
-
-                                if closestObstruction ~= nil then
-                                    print("is not nil")
-
-                                    local guidePos = closestObstruction.GuidePart.CFrame * CFrame.new(0, 0, 0.5)
-                                    local finalGuidePos = closestObstruction.GuidePart.CFrame * CFrame.new(0, 0, -2)
-                        
-                                    dragPlayer(CFrame.new(guidePos.X, charPos.Y, guidePos.Z))
-                                    dragPlayer(CFrame.new(finalGuidePos.X, charPos.Y, finalGuidePos.Z))
-
-                                    obstructions[closestObstruction] = nil
-                                    task.wait()
-                                end
-                            until #obstructions == 0
-                        elseif currentRoom.Parts:FindFirstChild("ScaryHaltCollision") then -- halt room
-                            downOffset = 28
-                            task.wait(1)
-                            charPos = localPlayer.Character:GetPivot()
-                        elseif currentRoom:FindFirstChild("Green_Herb") and Flags["AutoPlayGetHerb"] then
-                            local herb = currentRoom.Green_Herb
-                            local herbPos = herb:GetPivot()
-                    
-                            dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                            dragPlayer(CFrame.new(herbPos.X, charPos.Y, herbPos.Z))
-                            dragPlayer(CFrame.new(charPos.X, herbPos.Y, charPos.Z))
-                            fireproximityprompt(herb.Plant.HerbPrompt, herb.Plant)
-                        elseif currentRoom:FindFirstChild("RainSky") then
-                            downOffset = -10
-                        end
-
-                        local keyItem = character:FindFirstChild("Key")
-                        if not keyItem and (localPlayer.Backpack:FindFirstChild("Key") and keyItem:GetAttribute("LockID") - 1 == tonumber(currentRoom.Name)) then
-                            keyItem = localPlayer.Backpack.Key
-                            humanoid:EquipTool(keyItem) 
-                        end
-                        if not currentDoor:GetAttribute("Opened") and requiresKey and (not keyItem or keyItem:GetAttribute("LockID") - 1 ~= tonumber(currentRoom.Name)) and currentRoom:FindFirstChild("KeyObtain", true) then
-                            local key = currentRoom:FindFirstChild("KeyObtain", true)
-                            local keyPos = key:GetPivot().Position
-                    
-                            dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                            dragPlayer(CFrame.new(keyPos.X, charPos.Y, keyPos.Z))
-                            dragPlayer(CFrame.new(charPos.X, keyPos.Y, charPos.Z))
-                            fireproximityprompt(key.ModulePrompt)
-                        end
-                    
-                        if downOffset > 0 then
-                            repeat
-                                task.wait()
-                            until not isEntitySpawned()
-                        end
-
-                        charPos = localPlayer.Character.PrimaryPart.Position
-                        dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-                    
-                        if isSnakeRoom then
-                            local roomNodes = currentRoom:WaitForChild("PathfindNodes")
-                            repeat
-                                task.wait()
-                            until #roomNodes:GetChildren() >= 5
-                            local totalNodes = #roomNodes:GetChildren()
-                    
-                            --[[
-                                First Node: 2rd if totalNodes is 8 | 3rd if totalNodes is 7 or 9 | 4th if totalNodes is 10 | 5th if totalNodes is 11
-                                Second Node: 3rd if totalNodes is 8 | 5th if totalNodes is 7 | 6th if totalNodes is 9 | 7th if totalNodes is 10 | 8th if totalNodes is 11
-                                Third Node: 5th if totalNodes is 8
-                            ]]
-                    
-                            local firstNodePos = totalNodes == 8 and roomNodes["2"].Position or totalNodes == 9 and roomNodes["3"].Position or totalNodes == 10 and roomNodes["4"].Position or totalNodes == 11 and roomNodes["5"].Position or roomNodes["3"].Position
-                            dragPlayer(CFrame.new(firstNodePos.X, charPos.Y, firstNodePos.Z))
-
-                            local secondNodePos = totalNodes == 8 and roomNodes["3"].Position or totalNodes == 9 and roomNodes["6"].Position or totalNodes == 10 and roomNodes["7"].Position or totalNodes == 11 and roomNodes["8"].Position or roomNodes["5"].Position
-                            dragPlayer(CFrame.new(secondNodePos.X, charPos.Y, secondNodePos.Z))
-                                
-                            if totalNodes == 8 then
-                                local thirdNodePos = roomNodes["5"].Position
-                                dragPlayer(CFrame.new(thirdNodePos.X, charPos.Y, thirdNodePos.Z))
-                            end
-                        end
-
-                        dragPlayer(CFrame.new(doorPos.X, charPos.Y, doorPos.Z))
-
-                        downOffset = -8
-                        lastYBeforeOpening = charPos.Y
-
-                        dragPlayer(CFrame.new(charPos.X, doorPos.Y + downOffset, charPos.Z))
-
-                        if isRetro then
-                            fireproximityprompt(currentDoor.ActivateEventPrompt)
-                        elseif requiresKey then
-                            firepp(currentDoor.Lock.UnlockPrompt)
-                        else
-                            currentDoor.ClientOpen:FireServer()
-                        end
-
-                        local repeated = 0
-                        repeat
-                            if isRetro then fireproximityprompt(currentDoor.ActivateEventPrompt) else currentDoor.ClientOpen:FireServer() end
-                            task.wait()
-                            repeated += 1
-                        until latestRoom.Value > tonumber(currentRoom.Name) or repeated >= 250
-                    end
-                else
-                    print("i didnt finish the pathfinding")
-                end
-            else
-                Flags["Fly"]:Set(false)
-                Flags["Fly"]:SetLocked(false)      
-
-                Flags["NoHalt"]:SetLocked(false)
-                Flags["NoHalt"]:Set(oldHalt)
-
-                Flags["NoScreech"]:SetLocked(false)
-                Flags["NoScreech"]:Set(oldScreech) 
-
-                if connections["MoveConnection"] then
-                    connections["MoveConnection"]:Disconnect()
-                end
-            
-                if connections["PromptConnection"] then
-                    connections["PromptConnection"]:Disconnect()
-                end
-            end
-        end
-    }) do
-        AutoPlayToggle:AddSlider({
-            Name = "Speed",
-            Flag = "AutoPlaySpeed",
-            Increment = 1,
-            Min = 15,
-            Max = 50
-        })
-
-        AutoPlayToggle:AddToggle({
-            Name = "Get Herb",
-            Flag = "AutoPlayGetHerb"
-        })
-
-        AutoPlayToggle:AddToggle({
-            Name = "Pause while entity",
-            Flag = "AutoPlayPause"
-        })
-
-        AutoPlayToggle:AddSlider({
-            Name = "Max Room",
-            Flag = "AutoPlayMaxRoom",
-            Increment = 1,
-            Min = 1,
-            Max = isRooms and 1000 or 100,
-            Value = isRooms and 1000 or 100,
-        })
-    end
 end
 
 if #liveModifiers:GetChildren() > 0 then
@@ -2721,10 +2132,6 @@ local SettingsTab = Window:AddTab("Settings") do
 end
 
 Midnight.OnUnload = function()
-    if originalHook then
-        hookmetamethod(game, "__namecall", originalHook)
-    end
-
     for _, prompt: ProximityPrompt in pairs(workspace.CurrentRooms:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") and not table.find(promptTable.Excluded, prompt.Name) then
             prompt.MaxActivationDistance = prompt:GetAttribute("OriginalDistance") or 8
@@ -2752,16 +2159,13 @@ Midnight.OnUnload = function()
         if screechModule then screechModule.Name = "Screech" end
     end
 
-    if mainGame then
-        mainGame.fovtarget = 70
-        camera.FieldOfView = 70
-    end
+    camera.FieldOfView = 70
 
     if character then
         Lighting.Ambient = workspace.CurrentRooms[localPlayer:GetAttribute("CurrentRoom")]:GetAttribute("Ambient")
 
         for _, part in pairs(character:GetChildren()) do
-            if part:IsA("BasePart") and mainGame.hideplayers == 0 then
+            if part:IsA("BasePart") then
                 part.LocalTransparencyModifier = 0
             end
         end
@@ -2779,9 +2183,9 @@ Midnight.OnUnload = function()
     end
 
     if collision then
-        collision.CanCollide = not mainGame.crouching
+        collision.CanCollide = true
         if collision:FindFirstChild("CollisionCrouch") then
-            collision.CollisionCrouch.CanCollide = mainGame.crouching
+            collision.CollisionCrouch.CanCollide = false
         end
     end
 
@@ -2802,46 +2206,7 @@ end
 
 message.update_message_with_progress("[clutch.lua]: Adding Connections...", 4)
 -- #region Connections --
-task.spawn(function()
-    setupCharacterConnection(character)
-
-    local success, _ = pcall(function()
-        glitchModule = require(entityModules.Glitch)
-        haltModule = require(entityModules.Shade)
-    end)
-
-    if success and glitchModule and haltModule then
-        oldGlitchStuff = glitchModule.stuff
-        oldHaltStuff = haltModule.stuff
-    else
-        Flags["NoGlitch"]:SetLocked(true)
-        Flags["NoGlitch"]:Set(false)
-
-        Flags["NoHalt"]:SetLocked(true)
-        Flags["NoHalt"]:Set(false)
-    end
-end)
-
-local mtHook; mtHook = hookmetamethod(game, "__namecall", function(self, ...)
-    local args = {...}
-    local namecallMethod = getnamecallmethod()
-
-    if namecallMethod == "FireServer" then
-        if self.Name == "ClutchHeartbeat" and Flags["AutoHeartbeat"].Value then
-            return
-        elseif self.Name == "MotorReplication" and Flags["AntiEyes"].Value and isEyesSpawned() then
-            args[2] = -89
-            return mtHook(self, unpack(args))
-        end
-    elseif namecallMethod == "Destroy" and self.Name == "PathfindNodes" then 
-        return
-    end
-
-    return mtHook(self, ...)
-end)
-originalHook = originalHook or function(...)
-    return mtHook(...)
-end
+task.spawn(setupCharacterConnection, character)
 
 Midnight:AddConnection(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     if workspace.CurrentCamera then
@@ -2935,10 +2300,6 @@ Midnight:AddConnection(workspace.ChildAdded:Connect(function(child)
     end)
 
     task.delay(0.1, function()
-        --if alive and isEyesSpawned() then
-            --remotesFolder.MotorReplication:FireServer(0, -89, mainGame.az_t, mainGame.crouching)
-        --end
-
         if isFools then
             if Flags["AntiBanana"].Value and child.Name == "BananaPeel" then
                 child.CanTouch = false
@@ -2954,8 +2315,7 @@ Midnight:AddConnection(workspace.ChildAdded:Connect(function(child)
                 if child:IsDescendantOf(workspace) then 
                     local rawEntityName = entitiesTable.Names[child.Name] or child.Name
                     local entityName = getEntityName(child)
-                    
-
+    
                     if Flags["ESPWhat"].Value.Entity then
                         addEntityEsp(child)
                     end  
@@ -3010,7 +2370,6 @@ Midnight:AddConnection(playerGui.ChildAdded:Connect(function(child)
                 rawMainGame = mainUI:WaitForChild("Initiator", 1):WaitForChild("Main_Game", 1)
 
                 if rawMainGame then
-                    mainGame = require(rawMainGame)
                     if not rawMainGame:WaitForChild("RemoteListener", 1) then return end
 
                     if Flags["NoA90"].Value then
@@ -3146,19 +2505,7 @@ Midnight:AddConnection(UserInputService.InputBegan:Connect(function(input: Input
 end))
 
 Midnight:AddConnection(RunService.RenderStepped:Connect(function(deltaTime)
-    if mainGame then
-        if Flags["NoCamBob"] then
-            mainGame.bobspring.Position = Vector3.new()
-            mainGame.spring.Position = Vector3.new()
-        end
-        
-        if Flags["NoCamShake"].Value then
-            mainGame.csgo = CFrame.new()
-        end
-
-        mainGame.fovtarget = Flags["FOV"].Value
-        camera.FieldOfView = Flags["FOV"].Value
-    end
+    camera.FieldOfView = Flags["FOV"].Value
 
     if character then
         if alive then
@@ -3179,6 +2526,10 @@ Midnight:AddConnection(RunService.RenderStepped:Connect(function(deltaTime)
                         humanoid.WalkSpeed = 15 + Flags["SpeedBoost"].Value
                     end
                 end
+            end
+
+            if Flags["AntiEyes"].Value and isEyesSpawned() then
+                remotesFolder.MotorReplication:FireServer(0, -89, 0, false)
             end
         end
 
@@ -3204,7 +2555,6 @@ Midnight:AddConnection(RunService.RenderStepped:Connect(function(deltaTime)
             local door = workspace.CurrentRooms[latestRoom.Value]:FindFirstChild("Door")
 
             if door and door:FindFirstChild("ClientOpen") then
-                if Flags["AutoPlay"].Value and distanceFromCharacter(door) > 8 then return end 
                 door.ClientOpen:FireServer()
             end
         end
