@@ -6,7 +6,7 @@ local cloneref = cloneref or function(o) return o end
 local function GetService(name)
     return cloneref(game:GetService(name))
 end
-
+local firetouchtransmitter = firetouchtransmitter or firetouchinterest
 local oldfireproximityprompt = fireproximityprompt
 fireproximityprompt = function(prompt: ProximityPrompt)
     oldfireproximityprompt(prompt, 0)
@@ -553,7 +553,7 @@ end
 
 function addRoomConnection(room)
     room.DescendantAdded:Connect(function(child)
-        if child:IsA("BasePart") and (child.Parent and child.Parent.Name == "TriggerEventCollision" or child.Name == "Collision") then
+        if child:IsA("BasePart") and (child.Parent and child.Parent.Name == "TriggerEventCollision" and child.Name == "Collision") then
             if #Players:GetPlayers() > 1 and Flags["FEAntiSeek"].Value and rootPart then
                 local currentRoom = latestRoom.Value + 1
 
@@ -789,7 +789,7 @@ function addRoomConnection(room)
                         task.wait()
                     until not figure or latestRoom.Value > 49
 
-                    if not figure then
+                    if not figure or distanceFromCharacter(figure) > 1000 then
                         Midnight:Notify("Figure has been deleted")
                     end
                 end
@@ -1156,7 +1156,7 @@ local PlayerTab = Window:AddTab("Player") do
 
                             prompt.Enabled = true
                             prompt.RequiresLineOfSight = false
-                            print("set prompt clip to true")
+                            --print("set prompt clip to true")
                         else
                             prompt.Enabled = prompt:GetAttribute("OriginalEnabled") or true
                             prompt.RequiresLineOfSight = prompt:GetAttribute("OriginalClip") or true
