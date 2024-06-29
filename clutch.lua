@@ -25,14 +25,14 @@ local UserInputService = GetService("UserInputService")
 
 local Midnight, Flags = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Midnight/main/Source.lua"))()
 
---[[local Console = loadstring(game:HttpGet("https://raw.githubusercontent.com/mstudio45/MSDOORS/main/Utils/Console/Utility.lua"))() -- Made by Upio
+local Console = loadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/main/utils/console/main.lua"))() -- Made by Upio
 local message = Console.custom_console_progressbar({
     msg = "[clutch.lua]: Loading...",
     img = "",
     clr = Color3.fromRGB(255, 255, 255),
     length = 5
 })
-]]
+
 if not game:IsLoaded() then
     game.Loaded:Wait(1)
 end
@@ -45,7 +45,7 @@ if Players.LocalPlayer.PlayerGui:FindFirstChild("LoadingUI") and Players.LocalPl
     until not Players.LocalPlayer.PlayerGui.LoadingUI.Enabled
 end
 
--message.update_message_with_progress("[clutch.lua]: Creating variables...", 1)
+message.update_message_with_progress("[clutch.lua]: Creating variables...", 1)
 -- #region Variables --
 local RBXGeneral: TextChannel = TextChatService.TextChannels.RBXGeneral
 
@@ -194,7 +194,7 @@ type ESP = {
 }
 -- #endregion --
 
---message.update_message_with_progress("[clutch.lua]: Creating functions...", 2)
+message.update_message_with_progress("[clutch.lua]: Creating functions...", 2)
 -- #region Functions --
 function distanceFromCharacter(position)
     if typeof(position) == "Instance" then
@@ -1034,7 +1034,7 @@ function getLookCFrame(cf)
 end
 -- #endregion --
 
---message.update_message_with_progress("[clutch.lua]: Creating library...", 3)
+message.update_message_with_progress("[clutch.lua]: Creating library...", 3)
 -- #region Library --
 local Window = Midnight:CreateWindow({
     Title = "clutch.lua",
@@ -2204,7 +2204,7 @@ end
 
 -- #endregion -
 
---message.update_message_with_progress("[clutch.lua]: Adding Connections...", 4)
+message.update_message_with_progress("[clutch.lua]: Adding Connections...", 4)
 -- #region Connections --
 task.spawn(setupCharacterConnection, character)
 
@@ -2593,5 +2593,5 @@ Midnight:AddConnection(RunService.RenderStepped:Connect(function(deltaTime)
 end))
 -- #endregion --
 
---message.update_message("[clutch.lua]: Successfully loaded!", "rbxasset://textures/AudioDiscovery/done.png", Color3.fromRGB(51, 255, 85))
+message.update_message("[clutch.lua]: Successfully loaded!", "rbxasset://textures/AudioDiscovery/done.png", Color3.fromRGB(51, 255, 85))
 Midnight:LoadAutoloadConfig()
